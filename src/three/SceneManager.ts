@@ -30,29 +30,29 @@ export class SceneManager {
     this.controls.minPolarAngle = 0.15;
     this.controls.update();
 
-    const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x51704f, 0.9);
-    this.scene.add(hemi);
-
-    const sun = new THREE.DirectionalLight(0xfff2cc, 2.2);
-    sun.position.set(14, 20, 8);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -24;
-    sun.shadow.camera.right = 24;
-    sun.shadow.camera.top = 24;
-    sun.shadow.camera.bottom = -24;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 80;
-    sun.shadow.bias = -0.0004;
-    this.scene.add(sun);
+    this.applyQuality();
 
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('orientationchange', this.onResize);
     this.onResize();
+  }
+
+  get isMobile(): boolean {
+    return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+  }
+
+  private applyQuality(): void {
+    const mobile = this.isMobile;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1.5 : 2));
+    this.renderer.shadowMap.enabled = !mobile;
+    this.controls.rotateSpeed = mobile ? 0.75 : 0.55;
+    this.controls.zoomSpeed = mobile ? 1 : 0.85;
   }
 
   private onResize = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    this.applyQuality();
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -68,6 +68,7 @@ export class SceneManager {
 
   dispose(): void {
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('orientationchange', this.onResize);
     this.controls.dispose();
     this.renderer.dispose();
   }

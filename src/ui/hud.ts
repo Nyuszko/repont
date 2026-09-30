@@ -17,6 +17,7 @@ export class Hud {
   private readonly buttonEl: HTMLButtonElement;
   private readonly shopButtonEl: HTMLButtonElement;
   private readonly questButtonEl: HTMLButtonElement;
+  private readonly settingsButtonEl: HTMLButtonElement;
 
   constructor(
     root: HTMLElement,
@@ -24,6 +25,7 @@ export class Hud {
       onInsert: () => void;
       onToggleShop: () => void;
       onToggleQuests: () => void;
+      onToggleSettings: () => void;
     },
   ) {
     root.innerHTML = `
@@ -36,6 +38,7 @@ export class Hud {
         <div class="hud-nav">
           <button class="btn-nav" id="btn-shop" type="button">🛠️ Fejlesztések</button>
           <button class="btn-nav" id="btn-quests" type="button">📜 Küldetések</button>
+          <button class="btn-nav" id="btn-settings" type="button">⚙️</button>
         </div>
         <div class="pill pill-inv" id="hud-inv">0 db</div>
       </div>
@@ -52,6 +55,7 @@ export class Hud {
     const insert = root.querySelector('#btn-insert');
     const shop = root.querySelector('#btn-shop');
     const quests = root.querySelector('#btn-quests');
+    const settings = root.querySelector('#btn-settings');
 
     if (
       !(money instanceof HTMLElement) ||
@@ -61,7 +65,8 @@ export class Hud {
       !(hint instanceof HTMLElement) ||
       !(insert instanceof HTMLButtonElement) ||
       !(shop instanceof HTMLButtonElement) ||
-      !(quests instanceof HTMLButtonElement)
+      !(quests instanceof HTMLButtonElement) ||
+      !(settings instanceof HTMLButtonElement)
     ) {
       throw new Error('HUD elemek nem elérhetők');
     }
@@ -74,10 +79,12 @@ export class Hud {
     this.buttonEl = insert;
     this.shopButtonEl = shop;
     this.questButtonEl = quests;
+    this.settingsButtonEl = settings;
 
     this.buttonEl.addEventListener('click', () => this.handlers.onInsert());
     this.shopButtonEl.addEventListener('click', () => this.handlers.onToggleShop());
     this.questButtonEl.addEventListener('click', () => this.handlers.onToggleQuests());
+    this.settingsButtonEl.addEventListener('click', () => this.handlers.onToggleSettings());
   }
 
   refresh(state: GameState, machine: MachineInfo): void {
@@ -112,5 +119,9 @@ export class Hud {
 
   setQuestsOpen(open: boolean): void {
     this.questButtonEl.classList.toggle('active', open);
+  }
+
+  setSettingsOpen(open: boolean): void {
+    this.settingsButtonEl.classList.toggle('active', open);
   }
 }

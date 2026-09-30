@@ -37,6 +37,7 @@ const LAMP_XS = [-12, -4, 4, 12];
 
 export class World {
   readonly group = new THREE.Group();
+  readonly lampMaterials: THREE.MeshLambertMaterial[] = [];
 
   constructor() {
     this.buildGround();
@@ -169,6 +170,8 @@ export class World {
     const poleGeo = new THREE.CylinderGeometry(0.06, 0.09, 3.6, 8);
     for (const x of LAMP_XS) {
       const lamp = new THREE.Group();
+      const lampHeadMat = headMat.clone();
+      this.lampMaterials.push(lampHeadMat);
       const pole = new THREE.Mesh(poleGeo, poleMat);
       pole.position.y = 1.8;
       pole.castShadow = true;
@@ -176,7 +179,7 @@ export class World {
       const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.7), poleMat);
       arm.position.set(0, 3.55, 0.3);
       lamp.add(arm);
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.34), headMat);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.34), lampHeadMat);
       head.position.set(0, 3.5, 0.62);
       lamp.add(head);
       lamp.position.set(x, 0.08, 5.55);

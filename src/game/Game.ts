@@ -3,11 +3,14 @@ import { SoundEngine } from '../audio/SoundEngine';
 import { formatFt } from '../core/format';
 import { GameLoop } from '../core/GameLoop';
 import { SaveManager } from '../core/SaveManager';
+import { SAVE_KEY } from '../core/SaveManager';
 import { Store } from '../core/Store';
 import { CollectorManager } from '../three/Collector';
 import { PopupEffects } from '../three/Effects';
 import { BottleField, type ActiveBottle } from '../three/BottleField';
+import { DayNightCycle } from '../three/DayNightCycle';
 import { Machine } from '../three/Machine';
+import { ParticleBurst } from '../three/ParticleBurst';
 import { SceneManager } from '../three/SceneManager';
 import { World } from '../three/World';
 import { BOTTLE_TYPES, BOTTLE_TYPE_IDS, randomBottleType } from './bottles';
@@ -20,6 +23,7 @@ import { entryById, entryCost, isCollector, SHOP_ENTRIES } from './upgrades';
 import { isClaimable, isClaimed, QUESTS } from './quests';
 import { Hud } from '../ui/hud';
 import { QuestPanel, QuestTracker } from '../ui/quest-panel';
+import { SettingsPanel } from '../ui/settings-panel';
 import { Toaster } from '../ui/Toast';
 import { Tutorial } from '../ui/Tutorial';
 import { UpgradePanel } from '../ui/upgrade-panel';
@@ -27,6 +31,16 @@ import { UpgradePanel } from '../ui/upgrade-panel';
 const MACHINE_POINT = new THREE.Vector3(0, 0.08, 4.6);
 const AUTOSAVE_SECONDS = 10;
 const UI_REFRESH_SECONDS = 0.5;
+const OFFLINE_MIN_SECONDS = 120;
+const OFFLINE_CAP_MINUTES = 480;
+const OFFLINE_EFFICIENCY = 0.5;
+
+const BOTTLE_COLORS: Record<BottleTypeId, number> = {
+  pet: 0x7ec8ff,
+  doboz: 0xff8a80,
+  zsugoritott: 0xbaffc9,
+  premium: 0xffd23f,
+};
 const RATE_WINDOW_MS = 60_000;
 
 export class Game {
@@ -40,8 +54,11 @@ export class Game {
   private readonly hud: Hud;
   private readonly shop: UpgradePanel;
   private readonly quests: QuestPanel;
+  private readonly settings: SettingsPanel;
   private readonly tracker: QuestTracker;
   private readonly tutorial: Tutorial;
+  private readonly particles: ParticleBurst;
+  private readonly dayNight: DayNightCycle;
   private readonly toaster: Toaster;
   private readonly sound = new SoundEngine();
   private readonly loop: GameLoop;
@@ -59,7 +76,12 @@ export class Game {
     this.store = new Store<GameState>(this.saves.load());
 
     this.scene = new SceneManager(canvas);
-    this.scene.scene.add(new World().group);
+    const world = new World();
+    this.scene.scene.add(world.group);
+
+    this.dayNight = new DayNightCycle(this.scene.scene);
+    for (const material of world.lampMaterials) this.dayNight.registerLamp(material);
+    this.particles = new ParticleBurst(this.scene.scene);
 
     this.machine = new Machine((type, source) => this.onAccept(type, source));
     this.machine.group.position.set(0, 0.08, 3.2);
@@ -85,6 +107,12 @@ export class Game {
       this.claimQuest(questId),
     );
     this.tracker = new QuestTracker(layer);
+    this.settings = new SettingsPanel(layer, () => this.store.get(), {
+      onToggleSound: () => this.toggleSound(),
+      onExport: () => this.exportSave(),
+      onImport: () => this.importSave(),
+      onReset: () => this.resetGame(),
+    });
     this.tutorial = new Tutorial(layer, () => ({
       state: this.store.get(),
       collected: this.flags.collected,
@@ -104,6 +132,12 @@ export class Game {
         this.quests.toggle();
         this.hud.setQuestsOpen(this.quests.isOpen);
       },
+      onToggleSettings: () => {
+        this.closePanels();
+        this.settings.toggle();
+        this.hud.setSettingsOpen(this.settings.isOpen);
+        this.settings.refresh();
+      },
     });
 
     this.sound.setEnabled(this.store.get().soundEnabled);
@@ -111,6 +145,7 @@ export class Game {
 
     this.store.subscribe(() => this.refreshUi());
     this.refreshUi();
+    this.offerOfflineEarnings();
 
     this.interactions = new PointerInteractions(
       canvas,
@@ -145,8 +180,15 @@ export class Game {
     }
 
     this.collectors.update(dt);
-    this.machine.update(dt, state.totalBottles, this.machine.pending > capacity(state), machineInterval(state));
+    this.machine.update(
+      dt,
+      state.totalBottles,
+      this.machine.pending > capacity(state),
+      machineInterval(state),
+    );
     this.bottles.update(dt);
+    this.particles.update(dt);
+    this.dayNight.update(dt);
     this.scene.update();
     this.scene.render();
 
@@ -216,6 +258,7 @@ export class Game {
     if (source === 'collector' || type === 'premium') this.sound.cash();
     else this.sound.clink();
 
+    this.particles.burst(position, BOTTLE_COLORS[type], type === 'premium' ? 16 : 8);
     this.acceptTimes.push(Date.now());
     this.store.update((prev) => ({
       money: prev.money + value,
@@ -273,6 +316,71 @@ export class Game {
       this.quests.toggle();
       this.hud.setQuestsOpen(false);
     }
+    if (this.settings.isOpen) {
+      this.settings.toggle();
+      this.hud.setSettingsOpen(false);
+    }
+  }
+
+  private toggleSound(): void {
+    const enabled = !this.store.get().soundEnabled;
+    this.store.update({ soundEnabled: enabled });
+    this.sound.setEnabled(enabled);
+    this.settings.refresh();
+    if (enabled) this.sound.unlock();
+    this.toaster.show(enabled ? '🔊 Hang bekapcsolva' : '🔇 Hang kikapcsolva');
+  }
+
+  private exportSave(): void {
+    const data = this.saves.exportData(this.store.get());
+    void navigator.clipboard
+      ?.writeText(data)
+      .then(() => this.toaster.show('💾 A mentés a vágólapra került', 'success'))
+      .catch(() => window.prompt('Másold ki a mentést:', data));
+  }
+
+  private importSave(): void {
+    const input = window.prompt('Illeszd be a mentés szövegét:');
+    if (!input) return;
+    const imported = this.saves.importData(input);
+    if (!imported) {
+      this.sound.deny();
+      this.toaster.show('A mentés nem olvasható', 'error');
+      return;
+    }
+    this.store.update(imported);
+    this.sound.setEnabled(imported.soundEnabled);
+    this.collectors.sync(collectorSpecs(imported, SHOP_ENTRIES));
+    this.toaster.show('📥 Mentés betöltve', 'success');
+    this.persist();
+  }
+
+  private resetGame(): void {
+    const confirmed = window.confirm('Biztosan új játékot kezdesz? Minden előrelépés elvész.');
+    if (!confirmed) return;
+    window.localStorage.removeItem(SAVE_KEY);
+    window.location.reload();
+  }
+
+  private offerOfflineEarnings(): void {
+    const state = this.store.get();
+    const awaySeconds = Math.floor((Date.now() - state.lastSeen) / 1000);
+    if (awaySeconds < OFFLINE_MIN_SECONDS || state.totalBottles === 0) return;
+
+    const minutes = Math.min(awaySeconds / 60, OFFLINE_CAP_MINUTES);
+    const value = this.estimateOfflineValue(minutes);
+    if (value <= 0) return;
+
+    this.store.update((prev) => ({ money: prev.money + value }));
+    this.toaster.show(`💤 Távolléted alatt: +${formatFt(value)}`, 'success');
+    this.sound.cash();
+  }
+
+  private estimateOfflineValue(minutes: number): number {
+    if (this.collectors.count === 0) return 0;
+    const perMinute = this.ratePerMin();
+    if (perMinute <= 0) return 0;
+    return Math.floor(perMinute * minutes * OFFLINE_EFFICIENCY);
   }
 
   private buy(entryId: string): boolean {
