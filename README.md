@@ -47,6 +47,18 @@ npm test        # tesztek (watch)
 npm run lint    # ESLint
 ```
 
+## Mérföldkövek
+
+| # | Tartalom | Állapot |
+|---|---|---|
+| 1 | Projekt scaffold (Vite + TS + Three.js), CI + Pages deploy | ✅ kész |
+| 2 | Alapkör: 3D színtér, automata, palackgyűjtés, bedobás, pénz, mentés | ✅ kész |
+| 3 | Idle: gyűjtő NPC-k, spawner, fejlesztőbolt | ⏳ következik |
+| 4 | Küldetések, tutorial, toastok | ⏳ |
+| 5 | Polish: részecskék, nap/éj, hang, mobil | ⏳ |
+| 6 | Helyszínek, prestige, balansz, statisztikák | ⏳ |
+| 7 | Végleges README, `v1.0` tag | ⏳ |
+
 ## Deployment
 
 A `main` ágra pusholt változtatások automatikusan build-elnek és felkerülnek a GitHub Pages-re a `.github/workflows/deploy.yml` workflow-val.

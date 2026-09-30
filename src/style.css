@@ -2,6 +2,7 @@
   --c-bg: #0d3b2e;
   --c-accent: #ffd23f;
   --c-text: #f4f1e8;
+  --c-panel: rgba(6, 43, 26, 0.82);
   --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
@@ -35,8 +36,149 @@ body,
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
-#ui-root > * {
+.ui-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud-top-left {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud-top-right {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.pill {
+  background: var(--c-panel);
+  border: 1px solid rgba(255, 210, 63, 0.35);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+}
+
+.pill-money {
+  font-size: 20px;
+  color: var(--c-accent);
+}
+
+.pill-sub {
+  font-size: 13px;
+  opacity: 0.85;
+  font-weight: 600;
+}
+
+.pill-inv {
+  font-size: 16px;
+}
+
+.hud-bottom {
+  position: absolute;
+  bottom: 18px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.hint {
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--c-panel);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 14px;
+  border-radius: 999px;
+  text-align: center;
+}
+
+.hidden {
+  display: none;
+}
+
+.btn-insert {
   pointer-events: auto;
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 800;
+  color: #062b1a;
+  background: linear-gradient(180deg, #ffd23f, #ffb52e);
+  border: none;
+  border-radius: 14px;
+  padding: 14px 34px;
+  cursor: pointer;
+  box-shadow:
+    0 4px 0 #b97f12,
+    0 8px 18px rgba(0, 0, 0, 0.35);
+  transition:
+    transform 0.06s ease,
+    box-shadow 0.06s ease;
+}
+
+.btn-insert:disabled {
+  filter: grayscale(0.6) brightness(0.75);
+  cursor: default;
+  box-shadow: 0 2px 0 #6b6b6b;
+}
+
+.btn-insert:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #b97f12;
+}
+
+.popup {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 18px;
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  animation: popup-rise 1.05s ease-out forwards;
+}
+
+@keyframes popup-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.7);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -55%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -160%) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .pill-money {
+    font-size: 16px;
+  }
+  .pill-inv {
+    font-size: 14px;
+  }
+  .hint {
+    font-size: 12px;
+    max-width: 90vw;
+  }
+  .btn-insert {
+    font-size: 17px;
+    padding: 12px 26px;
+  }
 }
