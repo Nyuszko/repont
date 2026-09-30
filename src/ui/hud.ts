@@ -18,6 +18,8 @@ export class Hud {
   private readonly shopButtonEl: HTMLButtonElement;
   private readonly questButtonEl: HTMLButtonElement;
   private readonly settingsButtonEl: HTMLButtonElement;
+  private readonly locationButtonEl: HTMLButtonElement;
+  private readonly statsButtonEl: HTMLButtonElement;
 
   constructor(
     root: HTMLElement,
@@ -26,6 +28,8 @@ export class Hud {
       onToggleShop: () => void;
       onToggleQuests: () => void;
       onToggleSettings: () => void;
+      onToggleLocations: () => void;
+      onToggleStats: () => void;
     },
   ) {
     root.innerHTML = `
@@ -39,6 +43,8 @@ export class Hud {
           <button class="btn-nav" id="btn-shop" type="button">🛠️ Fejlesztések</button>
           <button class="btn-nav" id="btn-quests" type="button">📜 Küldetések</button>
           <button class="btn-nav" id="btn-settings" type="button">⚙️</button>
+          <button class="btn-nav" id="btn-locations" type="button">📍 Helyszínek</button>
+          <button class="btn-nav" id="btn-stats" type="button">📊</button>
         </div>
         <div class="pill pill-inv" id="hud-inv">0 db</div>
       </div>
@@ -56,6 +62,8 @@ export class Hud {
     const shop = root.querySelector('#btn-shop');
     const quests = root.querySelector('#btn-quests');
     const settings = root.querySelector('#btn-settings');
+    const locations = root.querySelector('#btn-locations');
+    const stats = root.querySelector('#btn-stats');
 
     if (
       !(money instanceof HTMLElement) ||
@@ -66,7 +74,9 @@ export class Hud {
       !(insert instanceof HTMLButtonElement) ||
       !(shop instanceof HTMLButtonElement) ||
       !(quests instanceof HTMLButtonElement) ||
-      !(settings instanceof HTMLButtonElement)
+      !(settings instanceof HTMLButtonElement) ||
+      !(locations instanceof HTMLButtonElement) ||
+      !(stats instanceof HTMLButtonElement)
     ) {
       throw new Error('HUD elemek nem elérhetők');
     }
@@ -80,11 +90,15 @@ export class Hud {
     this.shopButtonEl = shop;
     this.questButtonEl = quests;
     this.settingsButtonEl = settings;
+    this.locationButtonEl = locations;
+    this.statsButtonEl = stats;
 
     this.buttonEl.addEventListener('click', () => this.handlers.onInsert());
     this.shopButtonEl.addEventListener('click', () => this.handlers.onToggleShop());
     this.questButtonEl.addEventListener('click', () => this.handlers.onToggleQuests());
     this.settingsButtonEl.addEventListener('click', () => this.handlers.onToggleSettings());
+    this.locationButtonEl.addEventListener('click', () => this.handlers.onToggleLocations());
+    this.statsButtonEl.addEventListener('click', () => this.handlers.onToggleStats());
   }
 
   refresh(state: GameState, machine: MachineInfo): void {
@@ -123,5 +137,13 @@ export class Hud {
 
   setSettingsOpen(open: boolean): void {
     this.settingsButtonEl.classList.toggle('active', open);
+  }
+
+  setLocationsOpen(open: boolean): void {
+    this.locationButtonEl.classList.toggle('active', open);
+  }
+
+  setStatsOpen(open: boolean): void {
+    this.statsButtonEl.classList.toggle('active', open);
   }
 }

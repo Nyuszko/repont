@@ -56,7 +56,7 @@ npm run lint    # ESLint
 | 3 | Idle: gyűjtő NPC-k, spawner, fejlesztőbolt | ✅ kész |
 | 4 | Küldetések, tutorial, toastok | ✅ kész |
 | 5 | Polish: részecskék, nap/éj, hang, mobil, beállítások | ✅ kész |
-| 6 | Helyszínek, prestige, balansz, statisztikák | ⏳ |
+| 6 | Helyszínek, franchise (prestige), statisztikák, beállítások | ✅ kész |
 | 7 | Végleges README, `v1.0` tag | ⏳ |
 
 ## Deployment

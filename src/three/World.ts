@@ -35,9 +35,20 @@ const BUSHES: Array<[number, number]> = [
 
 const LAMP_XS = [-12, -4, 4, 12];
 
+export interface WorldPalette {
+  sky: number;
+  grass: number;
+  asphalt: number;
+  building: number;
+}
+
 export class World {
   readonly group = new THREE.Group();
   readonly lampMaterials: THREE.MeshLambertMaterial[] = [];
+
+  private readonly grassMat = new THREE.MeshLambertMaterial({ color: 0x5da45f });
+  private readonly asphaltMat = new THREE.MeshLambertMaterial({ color: 0x3d4045 });
+  private readonly buildingMats: THREE.MeshLambertMaterial[] = [];
 
   constructor() {
     this.buildGround();
@@ -49,11 +60,15 @@ export class World {
     this.buildProps();
   }
 
+  applyPalette(palette: WorldPalette | undefined): void {
+    if (!palette) return;
+    this.grassMat.color.setHex(palette.grass);
+    this.asphaltMat.color.setHex(palette.asphalt);
+    for (const material of this.buildingMats) material.color.setHex(palette.building);
+  }
+
   private buildGround(): void {
-    const grass = new THREE.Mesh(
-      new THREE.PlaneGeometry(160, 160),
-      new THREE.MeshLambertMaterial({ color: 0x5da45f }),
-    );
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), this.grassMat);
     grass.rotation.x = -Math.PI / 2;
     grass.receiveShadow = true;
     this.group.add(grass);
@@ -76,10 +91,7 @@ export class World {
     farWalk.receiveShadow = true;
     this.group.add(farWalk);
 
-    const asphalt = new THREE.Mesh(
-      new THREE.BoxGeometry(120, 0.06, 7),
-      new THREE.MeshLambertMaterial({ color: 0x3d4045 }),
-    );
+    const asphalt = new THREE.Mesh(new THREE.BoxGeometry(120, 0.06, 7), this.asphaltMat);
     asphalt.position.set(0, 0.03, 9.5);
     asphalt.receiveShadow = true;
     this.group.add(asphalt);
@@ -106,6 +118,7 @@ export class World {
       const tex = makeWindowTexture();
       tex.repeat.set(Math.max(1, Math.round(def.w / 3)), Math.max(1, Math.round(def.h / 3)));
       const mat = new THREE.MeshLambertMaterial({ color: def.color, map: tex });
+      this.buildingMats.push(mat);
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(def.w, def.h, def.d), mat);
       mesh.position.set(def.x, def.h / 2, def.z);
       this.group.add(mesh);

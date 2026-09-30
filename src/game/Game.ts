@@ -21,9 +21,13 @@ import { emptyInventory } from './state';
 import type { BottleTypeId, GameState } from './types';
 import { entryById, entryCost, isCollector, SHOP_ENTRIES } from './upgrades';
 import { isClaimable, isClaimed, QUESTS } from './quests';
+import { locationById, START_LOCATION } from './locations';
+import { canPrestige, prestigeGain } from './prestige';
 import { Hud } from '../ui/hud';
+import { LocationPanel } from '../ui/location-panel';
 import { QuestPanel, QuestTracker } from '../ui/quest-panel';
 import { SettingsPanel } from '../ui/settings-panel';
+import { StatsPanel } from '../ui/stats-panel';
 import { Toaster } from '../ui/Toast';
 import { Tutorial } from '../ui/Tutorial';
 import { UpgradePanel } from '../ui/upgrade-panel';
@@ -55,10 +59,13 @@ export class Game {
   private readonly shop: UpgradePanel;
   private readonly quests: QuestPanel;
   private readonly settings: SettingsPanel;
+  private readonly locations: LocationPanel;
+  private readonly stats: StatsPanel;
   private readonly tracker: QuestTracker;
   private readonly tutorial: Tutorial;
   private readonly particles: ParticleBurst;
   private readonly dayNight: DayNightCycle;
+  private readonly world: World;
   private readonly toaster: Toaster;
   private readonly sound = new SoundEngine();
   private readonly loop: GameLoop;
@@ -76,11 +83,11 @@ export class Game {
     this.store = new Store<GameState>(this.saves.load());
 
     this.scene = new SceneManager(canvas);
-    const world = new World();
-    this.scene.scene.add(world.group);
+    this.world = new World();
+    this.scene.scene.add(this.world.group);
 
     this.dayNight = new DayNightCycle(this.scene.scene);
-    for (const material of world.lampMaterials) this.dayNight.registerLamp(material);
+    for (const material of this.world.lampMaterials) this.dayNight.registerLamp(material);
     this.particles = new ParticleBurst(this.scene.scene);
 
     this.machine = new Machine((type, source) => this.onAccept(type, source));
@@ -113,6 +120,12 @@ export class Game {
       onImport: () => this.importSave(),
       onReset: () => this.resetGame(),
     });
+    this.locations = new LocationPanel(layer, () => this.store.get(), {
+      onTravel: (id) => this.travelTo(id),
+      onUnlock: (id) => this.unlockLocation(id),
+      onPrestige: () => this.doPrestige(),
+    });
+    this.stats = new StatsPanel(layer);
     this.tutorial = new Tutorial(layer, () => ({
       state: this.store.get(),
       collected: this.flags.collected,
@@ -138,10 +151,23 @@ export class Game {
         this.hud.setSettingsOpen(this.settings.isOpen);
         this.settings.refresh();
       },
+      onToggleLocations: () => {
+        this.closePanels();
+        this.locations.toggle();
+        this.hud.setLocationsOpen(this.locations.isOpen);
+      },
+      onToggleStats: () => {
+        this.closePanels();
+        this.stats.toggle();
+        this.hud.setStatsOpen(this.stats.isOpen);
+        if (this.stats.isOpen) this.refreshStats();
+      },
     });
 
     this.sound.setEnabled(this.store.get().soundEnabled);
     this.collectors.sync(collectorSpecs(this.store.get(), SHOP_ENTRIES));
+    const startLocation = locationById(this.store.get().locationId);
+    if (startLocation) this.world.applyPalette(startLocation.palette);
 
     this.store.subscribe(() => this.refreshUi());
     this.refreshUi();
@@ -320,6 +346,89 @@ export class Game {
       this.settings.toggle();
       this.hud.setSettingsOpen(false);
     }
+    if (this.locations.isOpen) {
+      this.locations.toggle();
+      this.hud.setLocationsOpen(false);
+    }
+    if (this.stats.isOpen) {
+      this.stats.toggle();
+      this.hud.setStatsOpen(false);
+    }
+  }
+
+  private travelTo(locationId: string): void {
+    const state = this.store.get();
+    const location = locationById(locationId);
+    if (!location || !state.unlockedLocations.includes(locationId)) return;
+    this.store.update({ locationId });
+    this.world.applyPalette(location.palette);
+    this.machine.group.visible = true;
+    this.toaster.show(location.banner, 'success');
+    this.sound.cash();
+    this.persist();
+  }
+
+  private unlockLocation(locationId: string): void {
+    const state = this.store.get();
+    const location = locationById(locationId);
+    if (!location) return;
+    if (state.unlockedLocations.includes(locationId)) {
+      this.travelTo(locationId);
+      return;
+    }
+    if (state.money < location.cost) {
+      this.sound.deny();
+      this.toaster.show('Nincs elég pénzed erre a helyszínre', 'error');
+      return;
+    }
+    this.store.update((prev) => ({
+      money: prev.money - location.cost,
+      unlockedLocations: [...prev.unlockedLocations, locationId],
+      locationId,
+    }));
+    this.world.applyPalette(location.palette);
+    this.toaster.show(`${location.banner} megnyitva!`, 'success');
+    this.sound.upgrade();
+    this.persist();
+  }
+
+  private doPrestige(): void {
+    const state = this.store.get();
+    if (!canPrestige(state)) {
+      this.sound.deny();
+      return;
+    }
+    const gain = prestigeGain(state);
+    const bonus = gain.bonusMoney;
+    this.store.update(() => ({
+      money: bonus,
+      totalMoney: bonus,
+      totalBottles: 0,
+      totalPremiumBottles: 0,
+      inventory: emptyInventory(),
+      upgrades: {},
+      quests: {},
+      prestigeCount: gain.count,
+      prestigeMultiplier: gain.multiplier,
+      locationId: START_LOCATION,
+      unlockedLocations: [START_LOCATION],
+    }));
+    this.collectors.sync(collectorSpecs(this.store.get(), SHOP_ENTRIES));
+    this.world.applyPalette(locationById(START_LOCATION)?.palette);
+    this.toaster.show(`🎉 Franchise #${gain.count}: ×${gain.multiplier.toFixed(2)} érték!`, 'success');
+    this.sound.quest();
+    this.persist();
+  }
+
+  private refreshStats(): void {
+    this.stats.refresh({
+      state: this.store.get(),
+      ratePerMin: this.ratePerMin(),
+      queue: this.machine.pending,
+      capacity: capacity(this.store.get()),
+      collectors: this.collectors.count,
+      offlineMinutes: OFFLINE_CAP_MINUTES,
+    });
   }
 
   private toggleSound(): void {

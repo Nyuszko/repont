@@ -1,5 +1,6 @@
 import { priceMultiplierAt, upgradeLevel } from './economy';
 import { UPGRADE_IDS } from './ids';
+import { locationById } from './locations';
 import type { GameState } from './types';
 import { isCollector, type ShopEntry } from './upgrades';
 
@@ -31,7 +32,11 @@ export function targetBottlesAt(level: number): number {
 }
 
 export function targetBottles(state: GameState): number {
-  return targetBottlesAt(upgradeLevel(state, UPGRADE_IDS.spawn));
+  return Math.round(targetBottlesAt(upgradeLevel(state, UPGRADE_IDS.spawn)) * spawnBonus(state));
+}
+
+export function spawnBonus(state: GameState): number {
+  return locationById(state.locationId)?.spawnBonus ?? 1;
 }
 
 export function capacityAt(level: number): number {
