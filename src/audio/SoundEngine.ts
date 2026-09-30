@@ -56,6 +56,12 @@ export class SoundEngine {
     this.tone({ freq: 1318.5, dur: 0.16, type: 'sine', gain: 0.14, delay: 0.07 });
   }
 
+  upgrade(): void {
+    this.tone({ freq: 523.25, dur: 0.09, type: 'triangle', gain: 0.13 });
+    this.tone({ freq: 659.25, dur: 0.09, type: 'triangle', gain: 0.13, delay: 0.07 });
+    this.tone({ freq: 783.99, dur: 0.18, type: 'triangle', gain: 0.14, delay: 0.14 });
+  }
+
   deny(): void {
     this.tone({ freq: 170, endFreq: 110, dur: 0.14, type: 'square', gain: 0.07 });
   }

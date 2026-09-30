@@ -1,9 +1,14 @@
 import * as THREE from 'three';
 import type { BottleTypeId } from '../game/types';
 
-const ACCEPT_INTERVAL = 0.45;
 const CHEW_TIME = 0.16;
 
+export type InsertSource = 'player' | 'collector';
+
+interface QueueItem {
+  type: BottleTypeId;
+  source: InsertSource;
+}
 interface BuiltMachine {
   screenTex: THREE.CanvasTexture;
   screenCtx: CanvasRenderingContext2D;
@@ -15,17 +20,19 @@ export class Machine {
   readonly group = new THREE.Group();
   readonly pickTargets: THREE.Mesh[] = [];
 
-  private queue: BottleTypeId[] = [];
+  private queue: QueueItem[] = [];
   private acceptTimer = 0;
   private chew = 0;
   private time = 0;
   private screenCount = -1;
+  private screenJammed = false;
+  private jammed = false;
   private screenTex: THREE.CanvasTexture;
   private screenCtx: CanvasRenderingContext2D;
   private slotGlow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private body: THREE.Mesh;
 
-  constructor(private onAccept: (type: BottleTypeId) => void) {
+  constructor(private onAccept: (type: BottleTypeId, source: InsertSource) => void) {
     const built = this.build();
     this.screenTex = built.screenTex;
     this.screenCtx = built.screenCtx;
@@ -37,27 +44,32 @@ export class Machine {
     return this.queue.length > 0;
   }
 
+  get jammedState(): boolean {
+    return this.jammed;
+  }
+
   get pending(): number {
     return this.queue.length;
   }
 
-  enqueue(types: BottleTypeId[]): void {
-    this.queue.push(...types);
+  enqueue(types: BottleTypeId[], source: InsertSource = 'player'): void {
+    for (const type of types) this.queue.push({ type, source });
   }
 
   slotWorldPosition(target: THREE.Vector3): THREE.Vector3 {
     return this.group.localToWorld(target.set(0, 1.38, 0.75));
   }
 
-  update(dt: number, totalBottles: number): void {
+  update(dt: number, totalBottles: number, jammed: boolean, interval: number): void {
     this.time += dt;
+    this.jammed = jammed;
 
     this.acceptTimer -= dt;
-    if (this.queue.length > 0 && this.acceptTimer <= 0) {
-      const type = this.queue.shift();
-      if (type !== undefined) {
-        this.onAccept(type);
-        this.acceptTimer = ACCEPT_INTERVAL;
+    if (!jammed && this.queue.length > 0 && this.acceptTimer <= 0) {
+      const item = this.queue.shift();
+      if (item !== undefined) {
+        this.onAccept(item.type, item.source);
+        this.acceptTimer = interval;
         this.chew = CHEW_TIME;
       }
     }
@@ -66,12 +78,16 @@ export class Machine {
     const chewScale = 1 - 0.035 * (this.chew / CHEW_TIME);
     this.body.scale.set(1, chewScale, 1);
 
-    const active = this.queue.length > 0;
-    const target = active ? 0.5 + 0.4 * Math.sin(this.time * 7) : 0.12;
-    this.slotGlow.material.opacity += (target - this.slotGlow.material.opacity) * Math.min(1, dt * 12);
+    const pulse = 0.5 + 0.4 * Math.sin(this.time * 7);
+    const target = jammed ? pulse : this.queue.length > 0 ? pulse * 0.8 : 0.12;
+    this.slotGlow.material.opacity +=
+      (target - this.slotGlow.material.opacity) * Math.min(1, dt * 12);
+    const glowColor = jammed ? 0xff4d3d : 0xffd23f;
+    this.slotGlow.material.color.setHex(glowColor);
 
-    if (totalBottles !== this.screenCount) {
+    if (totalBottles !== this.screenCount || jammed !== this.screenJammed) {
       this.screenCount = totalBottles;
+      this.screenJammed = jammed;
       this.drawScreen(totalBottles);
     }
   }
@@ -190,12 +206,20 @@ export class Machine {
     ctx.fillStyle = '#37e08a';
     ctx.font = 'bold 26px sans-serif';
     ctx.fillText('REPONT', 128, 32);
-    ctx.fillStyle = '#eafff3';
-    ctx.font = 'bold 44px sans-serif';
-    ctx.fillText(count.toLocaleString('hu-HU'), 128, 84);
-    ctx.fillStyle = '#37e08a';
-    ctx.font = '15px sans-serif';
-    ctx.fillText('visszaváltva', 128, 110);
+    if (this.screenJammed) {
+      ctx.fillStyle = '#ff4d3d';
+      ctx.font = 'bold 40px sans-serif';
+      ctx.fillText('DUPLT!', 128, 84);
+      ctx.font = '15px sans-serif';
+      ctx.fillText('sürgősen ürítés', 128, 110);
+    } else {
+      ctx.fillStyle = '#eafff3';
+      ctx.font = 'bold 44px sans-serif';
+      ctx.fillText(count.toLocaleString('hu-HU'), 128, 84);
+      ctx.fillStyle = '#37e08a';
+      ctx.font = '15px sans-serif';
+      ctx.fillText('visszaváltva', 128, 110);
+    }
     this.screenTex.needsUpdate = true;
   }
 }

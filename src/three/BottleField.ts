@@ -11,6 +11,10 @@ export interface ActiveBottle {
 const MAX_BOTTLES = 60;
 const AREA = { minX: -14, maxX: 14, minZ: -0.5, maxZ: 5.6 };
 
+export function surfaceHeightAt(z: number): number {
+  return z > 1.95 && z < 6.05 ? 0.08 : 0;
+}
+
 export class BottleField {
   readonly active: ActiveBottle[] = [];
 
@@ -53,6 +57,19 @@ export class BottleField {
     return this.active.find((b) => b.group === node) ?? null;
   }
 
+  nearest(from: THREE.Vector3, maxDistance = 26): ActiveBottle | null {
+    let best: ActiveBottle | null = null;
+    let bestDistance = maxDistance;
+    for (const bottle of this.active) {
+      const distance = Math.hypot(bottle.group.position.x - from.x, bottle.group.position.z - from.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = bottle;
+      }
+    }
+    return best;
+  }
+
   remove(bottle: ActiveBottle): void {
     const index = this.active.indexOf(bottle);
     if (index >= 0) this.active.splice(index, 1);
@@ -83,8 +100,7 @@ export class BottleField {
       const z = AREA.minZ + Math.random() * (AREA.maxZ - AREA.minZ);
       const blocked = (Math.abs(x) < 1.9 && z > 1.5 && z < 5.4) || (Math.abs(x - 3.4) < 1.3 && Math.abs(z - 2.4) < 0.9);
       if (!blocked) {
-        const onWalk = z > 1.95 && z < 6.05;
-        return new THREE.Vector3(x, onWalk ? 0.08 : 0, z);
+        return new THREE.Vector3(x, surfaceHeightAt(z), z);
       }
     }
     return new THREE.Vector3(5, 0, 2.5);
