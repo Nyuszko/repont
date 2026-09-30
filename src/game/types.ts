@@ -30,6 +30,7 @@ export interface GameState {
   money: number;
   totalMoney: number;
   totalBottles: number;
+  totalPremiumBottles: number;
   inventory: Record<BottleTypeId, number>;
   upgrades: Record<string, number>;
   quests: Record<string, QuestProgress>;

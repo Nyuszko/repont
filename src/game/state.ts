@@ -9,6 +9,7 @@ export function createInitialState(now = Date.now()): GameState {
     money: 0,
     totalMoney: 0,
     totalBottles: 0,
+    totalPremiumBottles: 0,
     inventory: emptyInventory(),
     upgrades: {},
     quests: {},

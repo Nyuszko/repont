@@ -17,12 +17,16 @@ import { capacity, collectorSpecs, machineInterval, spawnInterval, targetBottles
 import { emptyInventory } from './state';
 import type { BottleTypeId, GameState } from './types';
 import { entryById, entryCost, isCollector, SHOP_ENTRIES } from './upgrades';
+import { isClaimable, isClaimed, QUESTS } from './quests';
 import { Hud } from '../ui/hud';
+import { QuestPanel, QuestTracker } from '../ui/quest-panel';
 import { Toaster } from '../ui/Toast';
+import { Tutorial } from '../ui/Tutorial';
 import { UpgradePanel } from '../ui/upgrade-panel';
 
 const MACHINE_POINT = new THREE.Vector3(0, 0.08, 4.6);
 const AUTOSAVE_SECONDS = 10;
+const UI_REFRESH_SECONDS = 0.5;
 const RATE_WINDOW_MS = 60_000;
 
 export class Game {
@@ -35,6 +39,9 @@ export class Game {
   private readonly effects: PopupEffects;
   private readonly hud: Hud;
   private readonly shop: UpgradePanel;
+  private readonly quests: QuestPanel;
+  private readonly tracker: QuestTracker;
+  private readonly tutorial: Tutorial;
   private readonly toaster: Toaster;
   private readonly sound = new SoundEngine();
   private readonly loop: GameLoop;
@@ -43,7 +50,9 @@ export class Game {
   private spawnTimer = 0;
   private playAccumulator = 0;
   private autosaveAccumulator = 0;
+  private uiAccumulator = 0;
   private readonly acceptTimes: number[] = [];
+  private readonly flags = { collected: false, inserted: false, bought: false };
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.saves = new SaveManager(window.localStorage);
@@ -70,17 +79,30 @@ export class Game {
     layer.className = 'ui-layer';
     uiRoot.appendChild(layer);
 
-    this.shop = new UpgradePanel(
-      layer,
-      () => this.store.get(),
-      (entryId) => this.buy(entryId),
+    this.shop = new UpgradePanel(layer, () => this.store.get(), (entryId) => this.buy(entryId));
+
+    this.quests = new QuestPanel(layer, () => this.store.get(), (questId) =>
+      this.claimQuest(questId),
     );
+    this.tracker = new QuestTracker(layer);
+    this.tutorial = new Tutorial(layer, () => ({
+      state: this.store.get(),
+      collected: this.flags.collected,
+      inserted: this.flags.inserted,
+      bought: this.flags.bought,
+    }));
 
     this.hud = new Hud(layer, {
       onInsert: () => this.insertAll(),
       onToggleShop: () => {
+        this.closePanels();
         this.shop.toggle();
         this.hud.setShopOpen(this.shop.isOpen);
+      },
+      onToggleQuests: () => {
+        this.closePanels();
+        this.quests.toggle();
+        this.hud.setQuestsOpen(this.quests.isOpen);
       },
     });
 
@@ -140,6 +162,13 @@ export class Game {
       this.autosaveAccumulator = 0;
       this.persist();
     }
+
+    this.uiAccumulator += dt;
+    if (this.uiAccumulator >= UI_REFRESH_SECONDS) {
+      this.uiAccumulator = 0;
+      this.tutorial.update();
+      this.tracker.refresh(this.store.get());
+    }
   }
 
   private collect(bottle: ActiveBottle): void {
@@ -147,6 +176,7 @@ export class Game {
     const type = bottle.type;
     this.bottles.remove(bottle);
     this.sound.pop();
+    this.flags.collected = true;
     this.store.update((state) => ({
       inventory: { ...state.inventory, [type.id]: state.inventory[type.id] + 1 },
     }));
@@ -170,6 +200,7 @@ export class Game {
     }
     this.store.update({ inventory: emptyInventory() });
     this.machine.enqueue(queue);
+    this.flags.inserted = true;
   }
 
   private onDeliver(type: BottleTypeId): void {
@@ -190,7 +221,58 @@ export class Game {
       money: prev.money + value,
       totalMoney: prev.totalMoney + value,
       totalBottles: prev.totalBottles + 1,
+      totalPremiumBottles:
+        type === 'premium' ? prev.totalPremiumBottles + 1 : prev.totalPremiumBottles,
     }));
+    this.checkQuestCompletions();
+  }
+
+  private checkQuestCompletions(): void {
+    const state = this.store.get();
+    for (const def of QUESTS) {
+      if (isClaimable(state, def)) {
+        this.toaster.show(`${def.icon} Küldetés kész: ${def.name}!`, 'success');
+        this.sound.quest();
+      }
+    }
+  }
+
+  private claimQuest(questId: string): boolean {
+    const def = QUESTS.find((quest) => quest.id === questId);
+    if (!def) return false;
+    const state = this.store.get();
+    if (isClaimed(state, def) || !isClaimable(state, def)) {
+      this.sound.deny();
+      return false;
+    }
+
+    this.store.update((prev) => {
+      const upgrades = def.reward.upgrade
+        ? { ...prev.upgrades, [def.reward.upgrade]: (prev.upgrades[def.reward.upgrade] ?? 0) + 1 }
+        : { ...prev.upgrades };
+      return {
+        money: prev.money + def.reward.money,
+        upgrades,
+        quests: { ...prev.quests, [def.id]: { progress: def.goal, claimed: true } },
+      };
+    });
+
+    this.sound.quest();
+    this.toaster.show(`${def.icon} ${def.name}: +${formatFt(def.reward.money)}`, 'success');
+    this.collectors.sync(collectorSpecs(this.store.get(), SHOP_ENTRIES));
+    this.persist();
+    return true;
+  }
+
+  private closePanels(): void {
+    if (this.shop.isOpen) {
+      this.shop.toggle();
+      this.hud.setShopOpen(false);
+    }
+    if (this.quests.isOpen) {
+      this.quests.toggle();
+      this.hud.setQuestsOpen(false);
+    }
   }
 
   private buy(entryId: string): boolean {
@@ -223,6 +305,7 @@ export class Game {
     }
 
     this.sound.upgrade();
+    this.flags.bought = true;
     this.persist();
     return true;
   }
@@ -235,7 +318,9 @@ export class Game {
       ratePerMin: this.ratePerMin(),
       collectors: this.collectors.count,
     });
+    this.tracker.refresh(state);
     if (this.shop.isOpen) this.shop.refresh();
+    if (this.quests.isOpen) this.quests.refresh();
   }
 
   private ratePerMin(): number {

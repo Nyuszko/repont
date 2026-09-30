@@ -8,10 +8,17 @@ export interface StorageLike {
 }
 
 export const SAVE_KEY = 'repont-save';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 type Migration = (raw: Record<string, unknown>) => Record<string, unknown>;
-const MIGRATIONS: Record<number, Migration> = {};
+
+function num(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+const MIGRATIONS: Record<number, Migration> = {
+  1: (raw) => ({ ...raw, totalPremiumBottles: num(raw.totalPremiumBottles, 0) }),
+};
 
 interface SaveFile {
   version: number;
@@ -21,10 +28,6 @@ interface SaveFile {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
-}
-
-function num(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 function numRecord(value: unknown): Record<string, number> {
@@ -55,6 +58,7 @@ export function normalizeState(raw: unknown, now = Date.now()): GameState {
     money: num(raw.money, base.money),
     totalMoney: num(raw.totalMoney, base.totalMoney),
     totalBottles: num(raw.totalBottles, base.totalBottles),
+    totalPremiumBottles: num(raw.totalPremiumBottles, base.totalPremiumBottles),
     inventory: pickInventory(raw.inventory, base.inventory),
     upgrades: numRecord(raw.upgrades),
     quests: isRecord(raw.quests) ? (raw.quests as Record<string, QuestProgress>) : base.quests,

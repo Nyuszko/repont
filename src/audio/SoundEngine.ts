@@ -62,6 +62,13 @@ export class SoundEngine {
     this.tone({ freq: 783.99, dur: 0.18, type: 'triangle', gain: 0.14, delay: 0.14 });
   }
 
+  quest(): void {
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, index) => {
+      this.tone({ freq, dur: 0.16, type: 'triangle', gain: 0.13, delay: index * 0.09 });
+    });
+  }
+
   deny(): void {
     this.tone({ freq: 170, endFreq: 110, dur: 0.14, type: 'square', gain: 0.07 });
   }

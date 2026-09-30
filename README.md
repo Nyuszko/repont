@@ -54,7 +54,7 @@ npm run lint    # ESLint
 | 1 | Projekt scaffold (Vite + TS + Three.js), CI + Pages deploy | ✅ kész |
 | 2 | Alapkör: 3D színtér, automata, palackgyűjtés, bedobás, pénz, mentés | ✅ kész |
 | 3 | Idle: gyűjtő NPC-k, spawner, fejlesztőbolt | ✅ kész |
-| 4 | Küldetések, tutorial, toastok | ⏳ |
+| 4 | Küldetések, tutorial, toastok | ✅ kész |
 | 5 | Polish: részecskék, nap/éj, hang, mobil | ⏳ |
 | 6 | Helyszínek, prestige, balansz, statisztikák | ⏳ |
 | 7 | Végleges README, `v1.0` tag | ⏳ |

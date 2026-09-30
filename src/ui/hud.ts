@@ -16,12 +16,14 @@ export class Hud {
   private readonly hintEl: HTMLElement;
   private readonly buttonEl: HTMLButtonElement;
   private readonly shopButtonEl: HTMLButtonElement;
+  private readonly questButtonEl: HTMLButtonElement;
 
   constructor(
     root: HTMLElement,
     private handlers: {
       onInsert: () => void;
       onToggleShop: () => void;
+      onToggleQuests: () => void;
     },
   ) {
     root.innerHTML = `
@@ -33,6 +35,7 @@ export class Hud {
       <div class="hud-top-right">
         <div class="hud-nav">
           <button class="btn-nav" id="btn-shop" type="button">🛠️ Fejlesztések</button>
+          <button class="btn-nav" id="btn-quests" type="button">📜 Küldetések</button>
         </div>
         <div class="pill pill-inv" id="hud-inv">0 db</div>
       </div>
@@ -48,6 +51,7 @@ export class Hud {
     const hint = root.querySelector('#hud-hint');
     const insert = root.querySelector('#btn-insert');
     const shop = root.querySelector('#btn-shop');
+    const quests = root.querySelector('#btn-quests');
 
     if (
       !(money instanceof HTMLElement) ||
@@ -56,7 +60,8 @@ export class Hud {
       !(inv instanceof HTMLElement) ||
       !(hint instanceof HTMLElement) ||
       !(insert instanceof HTMLButtonElement) ||
-      !(shop instanceof HTMLButtonElement)
+      !(shop instanceof HTMLButtonElement) ||
+      !(quests instanceof HTMLButtonElement)
     ) {
       throw new Error('HUD elemek nem elérhetők');
     }
@@ -68,9 +73,11 @@ export class Hud {
     this.hintEl = hint;
     this.buttonEl = insert;
     this.shopButtonEl = shop;
+    this.questButtonEl = quests;
 
     this.buttonEl.addEventListener('click', () => this.handlers.onInsert());
     this.shopButtonEl.addEventListener('click', () => this.handlers.onToggleShop());
+    this.questButtonEl.addEventListener('click', () => this.handlers.onToggleQuests());
   }
 
   refresh(state: GameState, machine: MachineInfo): void {
@@ -101,5 +108,9 @@ export class Hud {
 
   setShopOpen(open: boolean): void {
     this.shopButtonEl.classList.toggle('active', open);
+  }
+
+  setQuestsOpen(open: boolean): void {
+    this.questButtonEl.classList.toggle('active', open);
   }
 }

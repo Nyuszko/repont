@@ -89,6 +89,32 @@ describe('SaveManager', () => {
     expect(saves.importData('nonsense', 3000)).toBeNull();
   });
 
+  it('v1 mentést migrál a v2 sémára', () => {
+    const storage = new FakeStorage();
+    storage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: 1000,
+        state: { money: 4200, totalBottles: 84, inventory: { pet: 2 } },
+      }),
+    );
+    const saves = new SaveManager(storage);
+    const state = saves.load(2000);
+    expect(state.money).toBe(4200);
+    expect(state.totalBottles).toBe(84);
+    expect(state.totalPremiumBottles).toBe(0);
+  });
+
+  it('migráció megőrzi a már meglévő prémium számot', () => {
+    const saves = new SaveManager(new FakeStorage());
+    const json = JSON.stringify({
+      version: 1,
+      state: { money: 10, totalPremiumBottles: 12 },
+    });
+    expect(saves.parse(json, 1000)?.totalPremiumBottles).toBe(12);
+  });
+
   it('mentéskor a lastSeen a mentés időpontja marad', () => {
     const storage = new FakeStorage();
     const saves = new SaveManager(storage);
